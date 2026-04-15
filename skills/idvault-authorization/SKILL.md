@@ -8,8 +8,8 @@ description: Check portrait/license authorization for a subject vs. a use case; 
 ## 何时使用
 
 - 询问：「明星/主体 A 在视频/封面/文章场景 B 中是否已授权？」
-- 收到上游转发的素材线索，需要给出 **authorized / not_found / expired / ambiguous**
-- 需要将结论写入 `Case_Log.md` 供后续法务或合规流程引用
+- **每日监测**：本地人脸比对命中某 `subject_id` 后，判断该 **视频来源 + 使用语境** 是否在 `licenses/` 覆盖范围内；若无，则配合 `idvault-daily-monitor` 生成 **unlicensed** 类告警
+- 需要将结论写入 `Case_Log.md` 供后续法务或合规流程引用，并与 `reports/YYYY-MM-DD/` 内 `case_id` 一致
 
 ## 流程
 

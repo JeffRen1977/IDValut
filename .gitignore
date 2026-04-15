@@ -12,3 +12,11 @@ known_faces/**/*.onnx
 licenses/**/*.pdf
 licenses/**/*.jpg
 licenses/**/*.png
+
+# 每日拉取的音视频缓存与中间产物
+ingest/cache/
+ingest/**/*.mp4
+ingest/**/*.webm
+ingest/**/*.mkv
+reports/**/*.mp4
+tmp/

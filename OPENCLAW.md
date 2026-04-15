@@ -2,6 +2,8 @@
 
 本仓库目录名是 **IDValut**（历史拼写）；OpenClaw 代理 id 为 **`idvault`**。
 
+业务目标（每日视频监测、本地人脸识别、授权核对、告警下发）见 **`AGENTS.md`** 与 **`skills/idvault-daily-monitor/SKILL.md`**。
+
 ## 1. 注册代理（已完成可跳过）
 
 ```bash
