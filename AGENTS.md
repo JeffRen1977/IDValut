@@ -2,11 +2,7 @@
 
 - **idvault**（本工作区）：身份与**肖像权授权**数据的守门代理。工作目录：`known_faces/`（特征或加密索引）、`licenses/`（授权记录）、`Case_Log.md`（侵权/核验案例流水）。详见 `SOUL.md` 与 `skills/`。
 
-## 与 `main`（WeChat）协作
-
-- **main** 负责内容生产与渠道；**idvault** 不负责发文。
-- 当 **main** 需要核实「某素材中是否出现库内艺人/是否已授权」时，应通过 OpenClaw **agent-to-agent** 向 **idvault** 发任务（需在 `openclaw.json` 中启用 `tools.agentToAgent` 并 allowlist `main` 与 `idvault`）。参见 `OPENCLAW.md`。
-- idvault 的回复应可被 main **引用为事实依据**（subject_id、授权条目、Case_Log 条目），但**不**在消息中粘贴敏感向量或原始特征文件内容。
+本工作区**自成一体**：职责仅限身份与授权数据，不依赖任何其他产品或代理仓库。若你在 OpenClaw 里还运行其他代理，仅当你**主动配置** `tools.agentToAgent` 时，它们才可能向 **idvault** 发核验类任务；未配置则完全独立。参见 `OPENCLAW.md`。
 
 ## Skills
 

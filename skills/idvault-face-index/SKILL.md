@@ -15,7 +15,7 @@ description: IDVault workspace layout for known_faces — subject IDs, index fil
 
 1. **subject_id**：稳定、匿名化优先（如 `TALENT_2026_001`），避免直接用身份证号或手机号。
 2. **索引**：优先「subject元数据 + 外部加密存储指针」；仓库内可保留 JSON Schema 与空表示例。
-3. **禁止**：向 `main` 工作区或公众号草稿中复制 `known_faces` 下的二进制嵌入文件。
+3. **禁止**：向**本仓库以外**的工程目录、共享草稿或未授权系统复制 `known_faces` 下的二进制嵌入或密钥材料。
 4. 离线 GPU/模型推理应封装为 **idvault 工作区内** 的脚本或工具（由你在本仓库实现），仅 **idvault** 会话默认 cwd 在此工作区。
 
 ## 路径

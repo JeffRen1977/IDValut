@@ -12,4 +12,4 @@
 
 1. 一行一案或一案一节；`case_id` 全局唯一。
 2. `finding` 使用受控词：`authorized`、`expired`、`not_found`、`ambiguous`、`pending_review`。
-3. 若 **main** 撰稿引用本表，只引用 **case_id + finding + date**，细节留在本仓库。
+3. 外部系统或稿件若引用本表，只引用 **case_id + finding + date**，细节留在本仓库。
