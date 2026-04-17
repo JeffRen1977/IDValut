@@ -50,3 +50,14 @@ description: Daily YouTube/TikTok URL intake, local face recognition vs known_fa
 ## 与「发出预警」
 
 - Skill 只定义**产出物**；实际发送由 `scripts/` 或外部自动化读取 `reports/` 完成（避免在 Skill 里写死密钥）。
+
+## 参考实现
+
+本仓库下已提供可直接运行的流水线脚本（详见 `scripts/README.md`）：
+
+- `scripts/face_utils.py` — 核心人脸检测 / 嵌入 / 相似度（基于 DeepFace + Facenet，本地运行）。
+- `scripts/build_known_faces.py` — 从 `known_faces/images/<subject_id>/*` 构建 `known_faces/index.json`。
+- `scripts/analyze_video.py` — 单视频抽帧识别，输出 `scan_*.json` 与命中时的 `alert_*.json`（含授权状态）。
+- `scripts/run-daily-idvault.sh` — 按日编排：`ingest/` → `yt-dlp` → `analyze_video.py` → `reports/<DATE>/`。
+
+代理在协调任务时应优先复用这些脚本，而不是自行发明对等逻辑；若需要扩展（如新加平台、新增告警渠道），在 `scripts/` 下新增脚本并在 `AGENTS.md` 中登记。

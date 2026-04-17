@@ -1,5 +1,7 @@
 # 生物特征与密钥 — 勿提交
 known_faces/embeddings/
+known_faces/images/
+known_faces/index.json
 known_faces/**/*.npy
 known_faces/**/*.bin
 known_faces/**/*.pt
@@ -7,6 +9,8 @@ known_faces/**/*.onnx
 *.key
 .env
 .venv/
+__pycache__/
+*.pyc
 
 # 授权书原件（若放本地）
 licenses/**/*.pdf

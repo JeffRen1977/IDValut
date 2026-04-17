@@ -7,10 +7,21 @@
 ## 数据流（期望形态）
 
 1. **ingest/** — 当日待扫 URL 列表（人工或脚本写入）。
-2. **本地 FR** — 你的识别算法（本仓库后续可放 `scripts/`，GPU/模型仅在本地运行）。
+2. **本地 FR** — 本仓库 `scripts/` 下的 DeepFace 流水线（`face_utils.py` + `analyze_video.py`），GPU/模型仅在本地运行。
 3. **licenses/** — 判断该使用场景是否允许；无覆盖则进入告警。
 4. **LLM** — 对允许素材生成短摘要，写入告警 JSON。
 5. **reports/YYYY-MM-DD/** — 结构化告警；**预警发送**由 webhook/邮件等脚本消费（勿把密钥写入 Git）。
+
+## 本仓库脚本（`scripts/`）
+
+| 脚本 | 作用 |
+|------|------|
+| `scripts/face_utils.py` | DeepFace 检测/对齐 + Facenet 嵌入 + 余弦相似度（核心 FR 原语）。|
+| `scripts/build_known_faces.py` | 由 `known_faces/images/<subject_id>/` 下参考照片生成 `known_faces/index.json`。|
+| `scripts/analyze_video.py` | 对单个本地视频做抽帧人脸比对，产出 `scan_*.json` + 命中时的 `alert_*.json`。|
+| `scripts/run-daily-idvault.sh` | **每日编排**：读取 `ingest/`，`yt-dlp` 下载，调用 analyze_video.py，写 `reports/<DATE>/`。|
+| `scripts/requirements.txt` | Python 依赖（DeepFace、OpenCV、TensorFlow 等）。|
+| `scripts/README.md` | 详细用法与环境变量说明。|
 
 ## Skills
 

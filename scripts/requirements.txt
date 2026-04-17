@@ -1,0 +1,17 @@
+# IDVault — local face-recognition pipeline deps
+#
+# Python support:
+#   * Python 3.10 / 3.11  -> TensorFlow 2.15 line works (older, well-tested combo).
+#   * Python 3.12         -> TensorFlow 2.16+ required (no 2.15 wheels for 3.12).
+#
+# DeepFace still imports tf.keras with Keras 2 semantics. Since TF 2.16 ships
+# Keras 3 by default, we install tf-keras (the Keras 2 sidecar) matched to the
+# TF minor version, and set TF_USE_LEGACY_KERAS=1 at runtime (see scripts/README.md).
+#
+# The ranges below intentionally stay inside the Keras-2-compatible window.
+
+opencv-python-headless>=4.5.0
+numpy>=1.26,<2.0.0
+deepface>=0.0.95
+tensorflow>=2.16,<2.20
+tf-keras>=2.16,<2.20
