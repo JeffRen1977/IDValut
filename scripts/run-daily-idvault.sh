@@ -14,7 +14,15 @@
 #                                Firebase / SQL removed)
 #
 # Usage:
-#   scripts/run-daily-idvault.sh [YYYY-MM-DD]
+#   scripts/run-daily-idvault.sh [YYYY-MM-DD] [--discover] [--send-warnings]
+#
+# Flags:
+#   --discover        Run scripts/run-discover.sh first to populate
+#                     ingest/<DATE>/sources.json from YouTube / TikTok seeds.
+#                     Equivalent to IDVAULT_DISCOVER=1.
+#   --send-warnings   After scanning, email alert_*.json via
+#                     scripts/send-warnings.sh. Equivalent to
+#                     IDVAULT_SEND_WARNINGS=1.
 #
 # Ingest sources (first one found wins):
 #   ingest/<DATE>/sources.json      — {"urls": [{"url": "...", "platform": "..."}, ...]}
@@ -26,6 +34,7 @@
 #   MAX_FRAMES=0          # cap processed frames per video (0 = no cap)
 #   YTDLP_FORMAT='mp4/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]'
 #   KEEP_MEDIA=0          # 1 to keep downloaded media after scan
+#   IDVAULT_DISCOVER=1    # run discovery orchestrator before scanning
 #   LOG=/tmp/idvault-daily.log
 # =============================================================================
 
@@ -35,7 +44,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 
-DATE="${1:-$(date +%Y-%m-%d)}"
+DATE=""
+RUN_DISCOVER="${IDVAULT_DISCOVER:-0}"
+SEND_WARNINGS="${IDVAULT_SEND_WARNINGS:-0}"
+for arg in "$@"; do
+  case "$arg" in
+    --discover)        RUN_DISCOVER=1 ;;
+    --no-discover)     RUN_DISCOVER=0 ;;
+    --send-warnings)   SEND_WARNINGS=1 ;;
+    --no-send-warnings) SEND_WARNINGS=0 ;;
+    -*)                echo "unknown flag: $arg" >&2; exit 2 ;;
+    *)                 [[ -z "$DATE" ]] && DATE="$arg" ;;
+  esac
+done
+DATE="${DATE:-$(date +%Y-%m-%d)}"
 COMPACT_DATE="${DATE//-/}"
 
 LOG="${LOG:-/tmp/idvault-daily.log}"
@@ -106,6 +128,19 @@ if [[ ! -f "$INDEX" ]]; then
 fi
 
 # -----------------------------------------------------------------------------
+# 1b. (Optional) Discovery: refresh ingest/<DATE>/sources.json from seeds.yaml
+# -----------------------------------------------------------------------------
+
+if [[ "$RUN_DISCOVER" == "1" ]]; then
+  if [[ -x "$SCRIPT_DIR/run-discover.sh" ]]; then
+    log "running discovery before scan"
+    "$SCRIPT_DIR/run-discover.sh" "$DATE" || log "discovery exited non-zero (continuing with whatever sources exist)"
+  else
+    log "WARN: run-discover.sh not found or not executable; skipping discovery"
+  fi
+fi
+
+# -----------------------------------------------------------------------------
 # 2. Load today's URL list
 # -----------------------------------------------------------------------------
 
@@ -114,11 +149,11 @@ trap 'rm -f "$urls_file"' EXIT
 
 if [[ -f "$SRC_JSON" ]]; then
   log "ingest source: $SRC_JSON"
-  # Each line: "<url>\t<platform>" (platform optional)
-  jq -r '.urls[] | [.url, (.platform // "")] | @tsv' "$SRC_JSON" > "$urls_file"
+  # Each line: "<url>\t<platform>\t<title>\t<discovery_source>" (tabs, any trailing field optional)
+  jq -r '.urls[] | [ .url, (.platform // ""), (.title // ""), (.discovery_source // "") ] | @tsv' "$SRC_JSON" > "$urls_file"
 elif [[ -f "$SRC_TXT" ]]; then
   log "ingest source: $SRC_TXT"
-  grep -E -v '^\s*(#|$)' "$SRC_TXT" | awk '{printf "%s\t\n", $0}' > "$urls_file"
+  grep -E -v '^\s*(#|$)' "$SRC_TXT" | awk -F'\t' '{printf "%s\t\t\t\n", $1}' > "$urls_file"
 else
   log "no ingest source at $SRC_JSON or $SRC_TXT; nothing to do"
   exit 0
@@ -153,11 +188,12 @@ next_case_id() {
 
 seq_no=0
 
-while IFS=$'\t' read -r url platform; do
+while IFS=$'\t' read -r url platform hint_title hint_source; do
   [[ -z "$url" ]] && continue
   seq_no=$((seq_no + 1))
   platform="${platform:-$(infer_platform "$url")}"
-  log "---- [$seq_no/$url_count] $platform :: $url"
+  [[ -n "$hint_source" ]] && log "---- [$seq_no/$url_count] $platform :: $url (from: $hint_source)" \
+                         ||  log "---- [$seq_no/$url_count] $platform :: $url"
 
   vid="$(yt-dlp --get-id "$url" 2>>"$LOG" || true)"
   if [[ -z "$vid" ]]; then
@@ -165,6 +201,7 @@ while IFS=$'\t' read -r url platform; do
     continue
   fi
   title="$(yt-dlp --get-title "$url" 2>>"$LOG" || true)"
+  [[ -z "$title" && -n "$hint_title" ]] && title="$hint_title"
 
   media="$CACHE/${platform}_${vid}.mp4"
   if [[ ! -s "$media" ]]; then
@@ -255,12 +292,18 @@ PY
 log "IDVault daily run done. Reports at $REPORTS"
 
 # -----------------------------------------------------------------------------
-# 5. Hook: send warnings
+# 5. Optional: email alerts
 # -----------------------------------------------------------------------------
-# Actual dispatch (email / webhook / WeCom) should be a separate script that
-# reads $REPORTS/alert_*.json and $REPORTS/summary.json. Example:
-#
-#   scripts/send-warnings.sh "$REPORTS"
-#
-# Do NOT put credentials in this repo; source them from $HOME/.idvault-env or
-# a secret manager.
+
+if [[ "$SEND_WARNINGS" == "1" ]]; then
+  n_alerts=$(find "$REPORTS" -maxdepth 1 -name 'alert_*.json' 2>/dev/null | wc -l | tr -d ' ')
+  if [[ "$n_alerts" -gt 0 ]]; then
+    log "dispatching $n_alerts alert(s) via send-warnings.sh"
+    "$SCRIPT_DIR/send-warnings.sh" "$DATE" >>"$LOG" 2>&1 || log "send-warnings.sh failed (see $LOG)"
+  else
+    log "no alerts to send"
+  fi
+fi
+
+# Dispatch credentials live in ~/.idvault-env (SMTP_HOST/USER/PASSWORD/FROM).
+# Recipient list is in ingest/notifications.yaml. Never commit credentials.

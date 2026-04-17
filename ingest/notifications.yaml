@@ -1,0 +1,35 @@
+# IDVault — Notification routing.
+#
+# Consumed by scripts/send_warnings.py. SMTP credentials stay in
+# ~/.idvault-env; this file only holds non-sensitive routing.
+
+email:
+  # Who gets alerted. Add more addresses to broadcast.
+  to:
+    - jianfengren.sd@gmail.com
+  cc: []
+  bcc: []
+
+  # Envelope sender. If null, the dispatcher falls back to
+  # $SMTP_FROM, then $SMTP_USER.
+  from: null
+
+  # Subject prefix helps Gmail/Outlook filters triage.
+  subject_prefix: "[IDVault]"
+
+  # Only send when the strongest matched subject is at least this tier.
+  # Values: "low" | "medium" | "high". Use "low" to send everything.
+  # Tiers are assigned in scripts/analyze_video.py:
+  #   sim >= 0.75 -> high
+  #   sim >= 0.65 -> medium
+  #   else        -> low
+  min_severity_tier: low
+
+  # Only include alerts whose alert_reason is in this list. Empty = all.
+  # Common reasons: unlicensed_face_match, license_expired, authorized_match.
+  include_reasons:
+    - unlicensed_face_match
+    - license_expired
+
+  # Attach the raw alert JSON to each email (auditable).
+  attach_json: true

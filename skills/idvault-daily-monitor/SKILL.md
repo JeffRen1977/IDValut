@@ -60,4 +60,14 @@ description: Daily YouTube/TikTok URL intake, local face recognition vs known_fa
 - `scripts/analyze_video.py` — 单视频抽帧识别，输出 `scan_*.json` 与命中时的 `alert_*.json`（含授权状态）。
 - `scripts/run-daily-idvault.sh` — 按日编排：`ingest/` → `yt-dlp` → `analyze_video.py` → `reports/<DATE>/`。
 
+### 发现（可选前置）
+
+- `scripts/discover_youtube.py` — YouTube Data API（或 yt-dlp `ytsearch` 回退）按主体 × 关键词模板搜索。
+- `scripts/discover_rss.py` — 订阅 `seeds.yaml` 里登记的 YouTube 频道 Atom RSS。
+- `scripts/discover_tiktok.py` — TikTok 用户/话题页面（yt-dlp），**仅扫描显式登记种子**。
+- `scripts/_merge_candidates.py` — 合并/去重（以 `platform:video_id` 为键，命中 `ingest/cache/seen.json` 则跳过），写 `ingest/<DATE>/sources.json`。
+- `scripts/run-discover.sh` — 以上的编排器；也可 `run-daily-idvault.sh --discover` 链式触发。
+
+发现策略与 ToS/配额边界：`docs/DISCOVERY_POLICY.md`。种子文件：`ingest/seeds.yaml`（可提交）；凭证在 `~/.idvault-env`（**勿**提交）。
+
 代理在协调任务时应优先复用这些脚本，而不是自行发明对等逻辑；若需要扩展（如新加平台、新增告警渠道），在 `scripts/` 下新增脚本并在 `AGENTS.md` 中登记。

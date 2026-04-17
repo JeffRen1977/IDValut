@@ -98,6 +98,7 @@ Run:
 ```bash
 scripts/run-daily-idvault.sh                  # uses today
 scripts/run-daily-idvault.sh 2026-04-16       # backfill a specific date
+scripts/run-daily-idvault.sh --discover       # run discovery first, then scan
 ```
 
 Outputs:
@@ -105,6 +106,38 @@ Outputs:
 - `reports/<DATE>/scan_<platform>_<vid>.json` — full scan detail
 - `reports/<DATE>/alert_<alert_id>.json` — alert per video with ≥ 1 match
 - `reports/<DATE>/summary.json` — batch summary index
+
+## Discovery pipeline (auto-populate `sources.json`)
+
+Instead of curating URLs by hand, IDVault can discover candidates from seeded
+YouTube / TikTok sources:
+
+| Script | Engine | Trigger |
+|---|---|---|
+| `scripts/discover_youtube.py` | YouTube Data API v3 (when `$YOUTUBE_API_KEY`) or yt-dlp `ytsearchN:"…"` fallback. | Keyword × subject-label templates from `ingest/seeds.yaml`. |
+| `scripts/discover_rss.py` | YouTube channel Atom feeds (no auth). | `youtube.channels[]` in `seeds.yaml`. |
+| `scripts/discover_tiktok.py` | `yt-dlp --flat-playlist` on TikTok user / hashtag pages. | `tiktok.users[]` / `tiktok.hashtags[]` in `seeds.yaml`. |
+| `scripts/_merge_candidates.py` | Dedup vs `ingest/cache/seen.json`, coalesce `discovery_source`, emit `sources.json`. | Invoked by `run-discover.sh`. |
+| `scripts/run-discover.sh` | Orchestrator. | `scripts/run-discover.sh [DATE]` or `run-daily-idvault.sh --discover`. |
+
+Seeds live in `ingest/seeds.yaml` (committed). API keys / cookies live in
+`~/.idvault-env`:
+
+```bash
+# ~/.idvault-env
+export YOUTUBE_API_KEY=...
+export YTDLP_COOKIES="$HOME/.config/yt-dlp/cookies.txt"   # optional TikTok cookies
+```
+
+Rate-limit / ToS posture is documented in
+[`../docs/DISCOVERY_POLICY.md`](../docs/DISCOVERY_POLICY.md).
+
+### Skip an engine
+
+```bash
+IDVAULT_SKIP_TIKTOK=1 scripts/run-discover.sh                 # YouTube + RSS only
+IDVAULT_SKIP_YT=1 IDVAULT_SKIP_RSS=1 scripts/run-discover.sh  # TikTok only
+```
 
 ## Tunables (env vars)
 
@@ -115,13 +148,56 @@ Outputs:
 | `MAX_FRAMES` | `0` | Cap processed frames per video (0 = no cap). |
 | `YTDLP_FORMAT` | `mp4/...` | yt-dlp `-f` selector. |
 | `KEEP_MEDIA` | `0` | Keep downloaded media in `ingest/cache/<DATE>/`. |
+| `IDVAULT_DISCOVER` | `0` | Run discovery before scan (`1` == `--discover`). |
 | `LOG` | `/tmp/idvault-daily.log` | Log file. |
 
 Put secrets in `~/.idvault-env` (auto-sourced by the runner). **Never** commit
 credentials or raw media.
 
-## Sending warnings
+## Sending warnings (email)
 
-The runner only produces alert JSON. Dispatch (email / webhook / WeCom) is a
-separate concern — add a `scripts/send-warnings.sh` that consumes
-`reports/<DATE>/alert_*.json` and calls your channel of choice.
+`scripts/send-warnings.sh` emails each `reports/<DATE>/alert_*.json` to the
+recipients listed in [`ingest/notifications.yaml`](../ingest/notifications.yaml)
+via SMTP. Under the hood it calls `scripts/send_warnings.py`, which:
+
+- filters alerts by `include_reasons` and `min_severity_tier`;
+- renders a plain-text + HTML body with the matched-subject table and the LLM
+  summary;
+- attaches the raw alert JSON for auditing;
+- writes an idempotency marker at `reports/<DATE>/.sent/<alert_id>.json` after
+  a successful send (marker dir is git-ignored).
+
+### Configure SMTP
+
+Add to `~/.idvault-env` (the runner auto-sources this):
+
+```bash
+export SMTP_HOST=smtp.gmail.com
+export SMTP_PORT=587
+export SMTP_USER=you@example.com
+export SMTP_PASSWORD=xxxxxxxxxxxxxxxx          # Gmail app password
+export SMTP_FROM='IDVault <you@example.com>'   # optional
+# export SMTP_USE_SSL=1                        # use port 465 + SMTPS instead
+# export SMTP_STARTTLS=0                       # disable STARTTLS (default 1)
+```
+
+**Gmail**: enable 2-factor auth, then create an *App password* at
+<https://myaccount.google.com/apppasswords> — that's what goes into
+`SMTP_PASSWORD`. Your daily Gmail password will be rejected.
+
+### Run
+
+```bash
+scripts/send-warnings.sh                           # today's alerts
+scripts/send-warnings.sh 2026-04-16                # specific date
+scripts/send-warnings.sh 2026-04-16 --dry-run      # render, don't send
+scripts/send-warnings.sh --to someone@example.com reports/2026-04-16
+scripts/send-warnings.sh 2026-04-16 --force        # resend (ignore .sent markers)
+```
+
+### Auto-send from the daily pipeline
+
+```bash
+scripts/run-daily-idvault.sh --discover --send-warnings
+# or: IDVAULT_SEND_WARNINGS=1 scripts/run-daily-idvault.sh --discover
+```

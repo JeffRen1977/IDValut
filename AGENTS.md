@@ -19,9 +19,18 @@
 | `scripts/face_utils.py` | DeepFace 检测/对齐 + Facenet 嵌入 + 余弦相似度（核心 FR 原语）。|
 | `scripts/build_known_faces.py` | 由 `known_faces/images/<subject_id>/` 下参考照片生成 `known_faces/index.json`。|
 | `scripts/analyze_video.py` | 对单个本地视频做抽帧人脸比对，产出 `scan_*.json` + 命中时的 `alert_*.json`。|
-| `scripts/run-daily-idvault.sh` | **每日编排**：读取 `ingest/`，`yt-dlp` 下载，调用 analyze_video.py，写 `reports/<DATE>/`。|
-| `scripts/requirements.txt` | Python 依赖（DeepFace、OpenCV、TensorFlow 等）。|
+| `scripts/discover_youtube.py` | YouTube 关键词发现（Data API 首选，`yt-dlp ytsearch` 回退）。|
+| `scripts/discover_rss.py` | YouTube 频道 RSS 订阅（watchlist）。|
+| `scripts/discover_tiktok.py` | TikTok 用户/话题页面发现（yt-dlp；需在 `seeds.yaml` 显式登记）。|
+| `scripts/_merge_candidates.py` | 按 `platform:video_id` 去重，合并 `discovery_source`，写 `ingest/<DATE>/sources.json`。|
+| `scripts/run-discover.sh` | 发现编排器；也可通过 `run-daily-idvault.sh --discover` 链式调用。|
+| `scripts/run-daily-idvault.sh` | **每日编排**：读取 `ingest/`，`yt-dlp` 下载，调用 analyze_video.py，写 `reports/<DATE>/`。支持 `--discover` 与 `--send-warnings`。|
+| `scripts/send_warnings.py` / `scripts/send-warnings.sh` | 邮件派发器：把 `reports/<DATE>/alert_*.json` 发给 `ingest/notifications.yaml` 里的收件人；幂等（`.sent/` 标记）。|
+| `scripts/requirements.txt` | Python 依赖（DeepFace、OpenCV、TensorFlow、PyYAML 等）。|
 | `scripts/README.md` | 详细用法与环境变量说明。|
+| `ingest/seeds.yaml` | 发现种子（关键词模板、watchlist 频道、TikTok 账号/话题）。|
+| `ingest/notifications.yaml` | 通知收件人与过滤（`min_severity_tier`、`include_reasons`）。|
+| `docs/DISCOVERY_POLICY.md` | 发现策略、引擎边界与 ToS/配额说明。|
 
 ## Skills
 

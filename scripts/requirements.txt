@@ -15,3 +15,6 @@ numpy>=1.26,<2.0.0
 deepface>=0.0.95
 tensorflow>=2.16,<2.20
 tf-keras>=2.16,<2.20
+
+# Discovery pipeline (seeds.yaml + orchestration)
+pyyaml>=6.0

@@ -22,5 +22,12 @@ ingest/cache/
 ingest/**/*.mp4
 ingest/**/*.webm
 ingest/**/*.mkv
-reports/**/*.mp4
+
+# Daily pipeline I/O — never commit the dated subdirectories.
+# Config (ingest/seeds.yaml, ingest/notifications.yaml, README.md) stays tracked.
+ingest/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
+reports/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
+
+# Per-alert send markers (operational state, not audit evidence).
+reports/**/.sent/
 tmp/
