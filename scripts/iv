@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Thin wrapper for iv.py (IDVault chat CLI stub).
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PY="${PYTHON:-$ROOT/.venv/bin/python}"
+[[ -x "$PY" ]] || PY="python3"
+exec "$PY" "$SCRIPT_DIR/iv.py" "$@"
