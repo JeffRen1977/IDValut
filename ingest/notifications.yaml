@@ -1,7 +1,8 @@
 # IDVault — Notification routing.
 #
-# Consumed by scripts/send_warnings.py. SMTP credentials stay in
-# ~/.idvault-env; this file only holds non-sensitive routing.
+# Consumed by scripts/send_warnings.py and scripts/send_whatsapp_alerts.py.
+# SMTP/OpenClaw credentials stay outside git; this file only holds
+# non-sensitive routing.
 
 email:
   # Who gets alerted. Add more addresses to broadcast.
@@ -33,3 +34,16 @@ email:
 
   # Attach the raw alert JSON to each email (auditable).
   attach_json: true
+
+whatsapp:
+  # Sends one daily digest message after run-daily-idvault.sh completes when
+  # IDVAULT_SEND_WHATSAPP=1 or --send-whatsapp is used.
+  enabled: true
+  to:
+    - "+18586039367"
+  subject_prefix: "IDVault"
+  min_severity_tier: low
+  include_reasons:
+    - unlicensed_face_match
+    - license_expired
+  timeout_s: 30

@@ -14,7 +14,7 @@
 #                                Firebase / SQL removed)
 #
 # Usage:
-#   scripts/run-daily-idvault.sh [YYYY-MM-DD] [--discover] [--send-warnings]
+#   scripts/run-daily-idvault.sh [YYYY-MM-DD] [--discover] [--send-warnings] [--send-whatsapp]
 #
 # Flags:
 #   --discover        Run scripts/run-discover.sh first to populate
@@ -23,6 +23,9 @@
 #   --send-warnings   After scanning, email alert_*.json via
 #                     scripts/send-warnings.sh. Equivalent to
 #                     IDVAULT_SEND_WARNINGS=1.
+#   --send-whatsapp   After scanning, send one WhatsApp digest via
+#                     scripts/send-whatsapp-alerts.sh. Equivalent to
+#                     IDVAULT_SEND_WHATSAPP=1.
 #
 # Ingest sources (first one found wins):
 #   ingest/<DATE>/sources.json      — {"urls": [{"url": "...", "platform": "..."}, ...]}
@@ -35,6 +38,7 @@
 #   YTDLP_FORMAT='mp4/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]'
 #   KEEP_MEDIA=0          # 1 to keep downloaded media after scan
 #   IDVAULT_DISCOVER=1    # run discovery orchestrator before scanning
+#   IDVAULT_SEND_WHATSAPP=1 # send one WhatsApp digest after scanning
 #   LOG=/tmp/idvault-daily.log
 # =============================================================================
 
@@ -47,12 +51,15 @@ cd "$ROOT"
 DATE=""
 RUN_DISCOVER="${IDVAULT_DISCOVER:-0}"
 SEND_WARNINGS="${IDVAULT_SEND_WARNINGS:-0}"
+SEND_WHATSAPP="${IDVAULT_SEND_WHATSAPP:-0}"
 for arg in "$@"; do
   case "$arg" in
     --discover)        RUN_DISCOVER=1 ;;
     --no-discover)     RUN_DISCOVER=0 ;;
     --send-warnings)   SEND_WARNINGS=1 ;;
     --no-send-warnings) SEND_WARNINGS=0 ;;
+    --send-whatsapp)   SEND_WHATSAPP=1 ;;
+    --no-send-whatsapp) SEND_WHATSAPP=0 ;;
     -*)                echo "unknown flag: $arg" >&2; exit 2 ;;
     *)                 [[ -z "$DATE" ]] && DATE="$arg" ;;
   esac
@@ -90,6 +97,20 @@ if [[ -f "$HOME/.idvault-env" ]]; then
   source "$HOME/.idvault-env"
 fi
 
+# Prefer the project venv so cron (which has a stripped PATH) picks up
+# deepface/opencv/numpy. Falls back to system python3 for interactive
+# installs that haven't built a venv yet.
+if [[ -z "${PYTHON:-}" ]]; then
+  if [[ -x "$ROOT/.venv/bin/python3" ]]; then
+    PYTHON="$ROOT/.venv/bin/python3"
+  elif [[ -x "$ROOT/.venv/bin/python" ]]; then
+    PYTHON="$ROOT/.venv/bin/python"
+  else
+    PYTHON="python3"
+  fi
+fi
+export PYTHON
+
 # -----------------------------------------------------------------------------
 # 0. Preflight
 # -----------------------------------------------------------------------------
@@ -101,12 +122,12 @@ need() {
   fi
 }
 
-need python3
+need "$PYTHON"
 need yt-dlp
 need jq
 
-if ! python3 -c "import cv2, numpy, deepface" >/dev/null 2>&1; then
-  log "ERROR: python deps missing. Run:  pip install -r $SCRIPT_DIR/requirements.txt"
+if ! "$PYTHON" -c "import cv2, numpy, deepface" >/dev/null 2>&1; then
+  log "ERROR: python deps missing in $PYTHON. Run:  $PYTHON -m pip install -r $SCRIPT_DIR/requirements.txt"
   exit 1
 fi
 
@@ -119,7 +140,7 @@ log "IDVault daily run start, DATE=$DATE frame_interval=$FRAME_INTERVAL threshol
 if [[ ! -f "$INDEX" ]]; then
   if [[ -d "$IMAGES_DIR" ]] && compgen -G "$IMAGES_DIR/*/*" >/dev/null; then
     log "index.json missing, building from $IMAGES_DIR"
-    python3 "$SCRIPT_DIR/build_known_faces.py" "$IMAGES_DIR" "$INDEX" 2>&1 | tee -a "$LOG"
+    "$PYTHON" "$SCRIPT_DIR/build_known_faces.py" "$IMAGES_DIR" "$INDEX" 2>&1 | tee -a "$LOG"
   else
     log "ERROR: no known_faces index and no reference images under $IMAGES_DIR"
     log "  Put reference photos under known_faces/images/<subject_id>/*.jpg and rerun."
@@ -222,7 +243,7 @@ while IFS=$'\t' read -r url platform hint_title hint_source; do
   case_id="$(next_case_id "$seq_no")"
   alert_out="$REPORTS/alert_${alert_id}.json"
 
-  if ! python3 "$SCRIPT_DIR/analyze_video.py" \
+  if ! "$PYTHON" "$SCRIPT_DIR/analyze_video.py" \
       --video "$media" \
       --index "$INDEX" \
       --scan-out "$scan_out" \
@@ -260,7 +281,7 @@ done < "$urls_file"
 # -----------------------------------------------------------------------------
 
 summary_path="$REPORTS/summary.json"
-python3 - "$REPORTS" "$DATE" "$summary_path" <<'PY'
+"$PYTHON" - "$REPORTS" "$DATE" "$summary_path" <<'PY'
 import json, sys, glob, os
 reports_dir, date, out = sys.argv[1], sys.argv[2], sys.argv[3]
 alerts = []
@@ -302,6 +323,19 @@ if [[ "$SEND_WARNINGS" == "1" ]]; then
     "$SCRIPT_DIR/send-warnings.sh" "$DATE" >>"$LOG" 2>&1 || log "send-warnings.sh failed (see $LOG)"
   else
     log "no alerts to send"
+  fi
+fi
+
+# -----------------------------------------------------------------------------
+# 6. Optional: WhatsApp daily digest
+# -----------------------------------------------------------------------------
+
+if [[ "$SEND_WHATSAPP" == "1" ]]; then
+  if [[ -x "$SCRIPT_DIR/send-whatsapp-alerts.sh" ]]; then
+    log "dispatching WhatsApp digest via send-whatsapp-alerts.sh"
+    "$SCRIPT_DIR/send-whatsapp-alerts.sh" "$DATE" >>"$LOG" 2>&1 || log "send-whatsapp-alerts.sh failed (see $LOG)"
+  else
+    log "WARN: send-whatsapp-alerts.sh not found or not executable; skipping WhatsApp digest"
   fi
 fi
 
